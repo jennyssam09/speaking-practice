@@ -41,15 +41,17 @@ const norm = s => String(s).toLowerCase().replace(/[‘’ʼ`´]/g, "'").replace
 /* ---------- 음성 ---------- */
 const synth = window.speechSynthesis;
 let voices = [], speakId = 0, curAudio = null, paraReset = null;
+const TOY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Kathy|Ralph)\b/i;
+const PREFER = [/Google US English/i, /Samantha/i, /\bAva\b/i, /Allison/i, /\bAlex\b/i, /Nicky/i, /Evan/i];
 function loadVoices() {
   if (!synth) return;
-  voices = synth.getVoices().filter(v => /^en/i.test(v.lang));
-  if ($('#voiceSel')) fillVoiceSel($('#voiceSel'));
+  const en = synth.getVoices().filter(v => /^en/i.test(v.lang) && !TOY.test(v.name));
+  const rank = v => { const i = PREFER.findIndex(r => r.test(v.name)); return (/en[-_]US/i.test(v.lang) ? 0 : 100) + (i < 0 ? 50 : i); };
+  voices = en.slice().sort((a, b) => rank(a) - rank(b));
+  refreshBar();
 }
 if (synth) { loadVoices(); synth.addEventListener ? synth.addEventListener('voiceschanged', loadVoices) : (synth.onvoiceschanged = loadVoices); }
-function pickVoice() {
-  return voices.find(v => v.voiceURI === prefs.voice) || voices.find(v => /Samantha|Google US English|Ava|Allison/i.test(v.name)) || voices.find(v => /en[-_]US/i.test(v.lang)) || voices[0] || null;
-}
+function pickVoice() { return voices.find(v => v.voiceURI === prefs.voice) || voices[0] || null; }
 function speak(text, onend) {
   if (!synth) return;
   synth.cancel(); stopAudio();
@@ -65,19 +67,21 @@ function stopSpeech() {
   speakId++; if (synth) synth.cancel(); stopAudio();
   if (paraReset) paraReset();
 }
-function fillVoiceSel(sel) {
-  sel.innerHTML = '';
-  if (!voices.length) { sel.append(h('option', { text: '(기본 음성)' })); return; }
+function refreshBar() {
+  const bar = $('#speechbar'); if (!bar) return;
+  bar.innerHTML = '';
+  if (!synth) { bar.append(h('p', { class: 'warn', text: '이 브라우저는 음성 읽기를 지원하지 않아요. 크롬이나 사파리에서 열어 주세요.' })); return; }
+  if (!voices.length) {
+    bar.append(h('p', { class: 'warn', text: '영어 음성을 찾지 못했어요. 시스템 설정 → 손쉬운 사용 → 읽기 및 말하기에서 영어 음성을 추가하세요. (추가한 뒤 이 페이지를 새로고침해 주세요)' }));
+    return;
+  }
   const cur = pickVoice();
-  voices.forEach(v => sel.append(h('option', { value: v.voiceURI, text: v.name + ' (' + v.lang + ')', selected: cur && cur.voiceURI === v.voiceURI })));
-}
-function speechBar() {
-  if (!synth) return h('p', { class: 'warn', text: '이 브라우저는 음성 읽기를 지원하지 않아요. 크롬이나 사파리에서 열어 주세요.' });
   const rate = h('select', { onchange: e => { prefs.rate = parseFloat(e.target.value); savePrefs(); } },
     [0.75, 0.9, 1.0].map(r => h('option', { value: r, text: r === 1 ? '1.0' : String(r), selected: prefs.rate === r })));
-  const vsel = h('select', { id: 'voiceSel', onchange: e => { prefs.voice = e.target.value; savePrefs(); } });
-  fillVoiceSel(vsel);
-  return h('div', { class: 'speechbar' }, h('label', {}, '속도 ', rate), h('label', {}, '음성 ', vsel));
+  const vsel = h('select', { onchange: e => { prefs.voice = e.target.value; savePrefs(); } },
+    voices.map(v => h('option', { value: v.voiceURI, text: v.name + ' (' + v.lang + ')', selected: cur && cur.voiceURI === v.voiceURI })));
+  bar.append(h('label', {}, '영어 음성 ', vsel), h('label', {}, '속도 ', rate),
+    h('button', { class: 'btn listen small', text: '들어보기', onclick: () => speak("Hi, this is how I sound. Let's practice speaking English.") }));
 }
 
 /* ---------- 화면 상태 ---------- */
@@ -168,6 +172,7 @@ function render() { renderNav(); renderMain(); }
 function renderMain() {
   const m = $('#main'); m.innerHTML = '';
   paraReset = null;
+  m.append(h('div', { class: 'speechbar', id: 'speechbar' })); refreshBar();
   if (ui.view === 'add') return m.append(addView());
   if (ui.view === 'empty' || (!lessons.length)) return m.append(emptyView());
   if (ui.view === 'all') {
@@ -182,7 +187,6 @@ function renderMain() {
   if (ui.view !== 'all') tabs.push(['read', '소리 내어 읽기']);
   if (!tabs.some(t => t[0] === ui.tab)) ui.tab = 'cards';
   m.append(h('div', { class: 'tabs', role: 'tablist' }, tabs.map(t => h('button', { class: 'tab' + (ui.tab === t[0] ? ' active' : ''), role: 'tab', onclick: () => setTab(t[0]), text: t[1] }))));
-  m.append(speechBar());
   m.append(h('div', { id: 'pane' }));
   renderPane();
 }

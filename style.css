@@ -42,7 +42,7 @@ ol,ul{padding-left:20px;margin:0}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--red);margin-right:6px;animation:blink 1s infinite}
 @keyframes blink{50%{opacity:.25}}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.speechbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:14px;color:var(--g1);margin-bottom:14px}
+.speechbar{border-bottom:1px solid var(--g3);padding-bottom:12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:14px;color:var(--g1);margin-bottom:14px}
 .speechbar select{border:1px solid var(--g2);border-radius:6px;padding:3px 6px;background:#fff;max-width:100%}
 .note{color:var(--g1);font-size:14px}
 .warn{color:var(--red);font-size:14px}
