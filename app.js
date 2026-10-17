@@ -42,12 +42,17 @@ const norm = s => String(s).toLowerCase().replace(/[‘’ʼ`´]/g, "'").replace
 const synth = window.speechSynthesis;
 let voices = [], speakId = 0, curAudio = null, paraReset = null;
 const TOY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Kathy|Ralph)\b/i;
-const PREFER = [/Google US English/i, /Samantha/i, /\bAva\b/i, /Allison/i, /\bAlex\b/i, /Nicky/i, /Evan/i];
+const FEMALE = [/Google US English/i, /Samantha/i, /^Ava\b/i, /Allison/i, /Nicky/i, /^Flo\b/i, /^Sandy/i, /^Shelley/i];
+const MALE = [/Evan/i, /Aaron/i, /^Alex\b/i, /^Tom\b/i, /^Reed/i, /^Eddy/i, /^Rocko/i, /^Grandpa/i];
 function loadVoices() {
   if (!synth) return;
-  const en = synth.getVoices().filter(v => /^en/i.test(v.lang) && !TOY.test(v.name));
-  const rank = v => { const i = PREFER.findIndex(r => r.test(v.name)); return (/en[-_]US/i.test(v.lang) ? 0 : 100) + (i < 0 ? 50 : i); };
-  voices = en.slice().sort((a, b) => rank(a) - rank(b));
+  const us = synth.getVoices().filter(v => /^en[-_]US/i.test(v.lang) && !TOY.test(v.name));
+  const find = list => { for (const r of list) { const v = us.find(x => r.test(x.name)); if (v) return v; } return null; };
+  const f = find(FEMALE), m = find(MALE);
+  voices = [];
+  if (f) { f.label = '미국식 여성 · ' + f.name.replace(/\s*\(.*\)/, ''); voices.push(f); }
+  if (m) { m.label = '미국식 남성 · ' + m.name.replace(/\s*\(.*\)/, ''); voices.push(m); }
+  if (!voices.length && us[0]) { us[0].label = us[0].name; voices.push(us[0]); }
   refreshBar();
 }
 if (synth) { loadVoices(); synth.addEventListener ? synth.addEventListener('voiceschanged', loadVoices) : (synth.onvoiceschanged = loadVoices); }
@@ -79,7 +84,7 @@ function refreshBar() {
   const rate = h('select', { onchange: e => { prefs.rate = parseFloat(e.target.value); savePrefs(); } },
     [0.75, 0.9, 1.0].map(r => h('option', { value: r, text: r === 1 ? '1.0' : String(r), selected: prefs.rate === r })));
   const vsel = h('select', { onchange: e => { prefs.voice = e.target.value; savePrefs(); } },
-    voices.map(v => h('option', { value: v.voiceURI, text: v.name + ' (' + v.lang + ')', selected: cur && cur.voiceURI === v.voiceURI })));
+    voices.map(v => h('option', { value: v.voiceURI, text: v.label, selected: cur && cur.voiceURI === v.voiceURI })));
   bar.append(h('label', {}, '영어 음성 ', vsel), h('label', {}, '속도 ', rate),
     h('button', { class: 'btn listen small', text: '들어보기', onclick: () => speak("Hi, this is how I sound. Let's practice speaking English.") }));
 }
@@ -317,9 +322,12 @@ function cardsView() {
     const card = h('div', { class: 'card', tabIndex: 0, role: 'button', 'aria-label': '카드 뒤집기', onclick: flip }, S.flipped ? back : front);
     root.append(h('div', { class: 'bar' }, h('i', { style: `width:${Math.round(S.pos / S.queue.length * 100)}%` })), card,
       h('div', { class: 'cardbtns' },
+        h('button', { class: 'btn', text: '← 이전 카드', disabled: S.pos === 0, onclick: () => step(-1) }),
+        h('button', { class: 'btn', text: '다음 카드 →', onclick: () => step(1) })),
+      h('div', { class: 'cardbtns' },
         h('button', { class: 'btn', text: '다시 볼래요', onclick: () => mark(true) }),
         h('button', { class: 'btn primary', text: '말할 수 있어요', onclick: () => mark(false) })),
-      h('div', { class: 'keys', text: '스페이스 뒤집기 · ← 다시 볼래요 · → 말할 수 있어요' }));
+      h('div', { class: 'keys', text: '스페이스 뒤집기 · ← 다시 볼래요 · → 말할 수 있어요 · ↑ 이전 · ↓ 다음' }));
   };
   function flip() { S.flipped = !S.flipped; draw(); if (S.flipped) speak(S.queue[S.pos].c.en); else stopSpeech(); }
   function mark(again) {
@@ -330,8 +338,13 @@ function cardsView() {
     if (S.pos >= S.queue.length) S.done = true;
     draw();
   }
+  function step(d) {
+    stopSpeech(); S.pos = Math.max(0, S.pos + d); S.flipped = false;
+    if (S.pos >= S.queue.length) S.done = true;
+    draw();
+  }
   function restart(q) { S.queue = q; S.pos = 0; S.flipped = false; S.done = false; draw(); }
-  S.flip = flip; S.mark = mark;
+  S.flip = flip; S.mark = mark; S.step = step;
   draw();
   return root;
 }
@@ -344,6 +357,8 @@ document.addEventListener('keydown', e => {
   if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); S.flip(); }
   else if (e.key === 'ArrowLeft') { e.preventDefault(); S.mark(true); }
   else if (e.key === 'ArrowRight') { e.preventDefault(); S.mark(false); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); S.step(-1); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); S.step(1); }
 });
 
 /* ---------- 퀴즈 ---------- */
